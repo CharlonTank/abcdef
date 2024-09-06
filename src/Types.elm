@@ -3,20 +3,29 @@ module Types exposing (..)
 import Browser exposing (UrlRequest)
 import Browser.Navigation exposing (Key)
 import Dict exposing (Dict)
+import Lamdera exposing (ClientId, SessionId)
+import Set exposing (Set)
 import Url exposing (Url)
+
+
+type alias BackendModel =
+    { robotState : RobotState
+    , clients : Set ClientId
+    }
 
 
 type alias FrontendModel =
     { key : Key
-    , robotPosition : ( Int, Int )
-    , robotDirection : Direction
-    , robotAngle : Float
-    , tileColors : Dict ( Int, Int ) TileColor
+    , robotState : RobotState
     }
 
 
-type alias BackendModel =
-    { message : String
+type alias RobotState =
+    { position : ( Int, Int )
+    , direction : Direction
+    , angle : Float
+    , tileColors : Dict ( Int, Int ) TileColor
+    , clientCount : Int
     }
 
 
@@ -24,21 +33,23 @@ type FrontendMsg
     = UrlClicked UrlRequest
     | UrlChanged Url
     | NoOpFrontendMsg
-    | MoveForward
-    | RotateLeft
-    | RotateRight
+    | SendMoveRobot RobotMovement
+    | ResetClicked
 
 
 type ToBackend
-    = NoOpToBackend
+    = MoveRobot RobotMovement
+    | ResetRobot
 
 
 type BackendMsg
     = NoOpBackendMsg
+    | ClientConnected SessionId ClientId
+    | ClientDisconnected SessionId ClientId
 
 
 type ToFrontend
-    = NoOpToFrontend
+    = SyncRobotState RobotState
 
 
 type Direction
@@ -53,3 +64,9 @@ type TileColor
     | Color2
     | Color3
     | Color4
+
+
+type RobotMovement
+    = MoveForward
+    | RotateLeft
+    | RotateRight

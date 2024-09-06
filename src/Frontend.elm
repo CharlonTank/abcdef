@@ -4,10 +4,12 @@ import Browser exposing (Document)
 import Browser.Events exposing (onKeyDown)
 import Browser.Navigation as Nav
 import Dict exposing (Dict)
-import Html exposing (div)
+import Html exposing (Html, button, div, p, text)
+import Html.Attributes exposing (style)
+import Html.Events exposing (onClick)
 import Json.Decode as Decode
 import Lamdera
-import Svg exposing (Svg, image, svg)
+import Svg exposing (Svg, g, image, svg)
 import Svg.Attributes as SvgAttr
 import Types exposing (..)
 import Url
@@ -28,44 +30,16 @@ app =
 init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init _ key =
     ( { key = key
-      , robotPosition = ( 2, 2 )
-      , robotDirection = North
-      , robotAngle = 0
-      , tileColors = initColors
+      , robotState =
+            { position = ( 2, 2 )
+            , direction = North
+            , angle = 0
+            , tileColors = Dict.empty
+            , clientCount = 0
+            }
       }
     , Cmd.none
     )
-
-
-initColors : Dict ( Int, Int ) TileColor
-initColors =
-    Dict.fromList
-        [ ( ( 0, 0 ), Color1 )
-        , ( ( 1, 0 ), Color2 )
-        , ( ( 2, 0 ), Color3 )
-        , ( ( 3, 0 ), Color4 )
-        , ( ( 4, 0 ), Color1 )
-        , ( ( 0, 1 ), Color2 )
-        , ( ( 1, 1 ), Color3 )
-        , ( ( 2, 1 ), Color4 )
-        , ( ( 3, 1 ), Color1 )
-        , ( ( 4, 1 ), Color2 )
-        , ( ( 0, 2 ), Color3 )
-        , ( ( 1, 2 ), Color4 )
-        , ( ( 2, 2 ), Color1 )
-        , ( ( 3, 2 ), Color2 )
-        , ( ( 4, 2 ), Color3 )
-        , ( ( 0, 3 ), Color4 )
-        , ( ( 1, 3 ), Color1 )
-        , ( ( 2, 3 ), Color2 )
-        , ( ( 3, 3 ), Color3 )
-        , ( ( 4, 3 ), Color4 )
-        , ( ( 0, 4 ), Color1 )
-        , ( ( 1, 4 ), Color2 )
-        , ( ( 2, 4 ), Color3 )
-        , ( ( 3, 4 ), Color4 )
-        , ( ( 4, 4 ), Color1 )
-        ]
 
 
 update : FrontendMsg -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
@@ -77,42 +51,11 @@ update msg model =
         UrlChanged _ ->
             ( model, Cmd.none )
 
-        MoveForward ->
-            let
-                newPosition =
-                    moveForward model.robotPosition model.robotDirection
+        SendMoveRobot movement ->
+            ( model, Lamdera.sendToBackend (MoveRobot movement) )
 
-                newTileColors =
-                    if newPosition /= model.robotPosition then
-                        Dict.update newPosition
-                            (Maybe.map nextTileColor >> Maybe.withDefault Color1 >> Just)
-                            model.tileColors
-
-                    else
-                        model.tileColors
-            in
-            ( { model
-                | robotPosition = newPosition
-                , tileColors = newTileColors
-              }
-            , Cmd.none
-            )
-
-        RotateLeft ->
-            ( { model
-                | robotDirection = rotateLeft model.robotDirection
-                , robotAngle = model.robotAngle - 90
-              }
-            , Cmd.none
-            )
-
-        RotateRight ->
-            ( { model
-                | robotDirection = rotateRight model.robotDirection
-                , robotAngle = model.robotAngle + 90
-              }
-            , Cmd.none
-            )
+        ResetClicked ->
+            ( model, Lamdera.sendToBackend ResetRobot )
 
         NoOpFrontendMsg ->
             ( model, Cmd.none )
@@ -121,8 +64,8 @@ update msg model =
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
 updateFromBackend msg model =
     case msg of
-        NoOpToFrontend ->
-            ( model, Cmd.none )
+        SyncRobotState newState ->
+            ( { model | robotState = newState }, Cmd.none )
 
 
 subscriptions : FrontendModel -> Sub FrontendMsg
@@ -139,13 +82,13 @@ toDirection : String -> FrontendMsg
 toDirection string =
     case string of
         "ArrowUp" ->
-            MoveForward
+            SendMoveRobot MoveForward
 
         "ArrowLeft" ->
-            RotateLeft
+            SendMoveRobot RotateLeft
 
         "ArrowRight" ->
-            RotateRight
+            SendMoveRobot RotateRight
 
         _ ->
             NoOpFrontendMsg
@@ -155,16 +98,43 @@ view : FrontendModel -> Document FrontendMsg
 view model =
     { title = "Robot Simulation"
     , body =
-        [ div []
+        [ div
+            [ style "display" "flex"
+            , style "flex-direction" "column"
+            , style "align-items" "center"
+            , style "justify-content" "center"
+            , style "height" "100vh"
+            , style "width" "100vw"
+            ]
             [ svg
                 [ SvgAttr.width "500"
                 , SvgAttr.height "500"
                 , SvgAttr.viewBox "0 0 500 500"
                 ]
-                (viewGrid model.tileColors ++ [ viewRobot model ])
+                [ g [ SvgAttr.transform "translate(0, 0)" ]
+                    (viewGrid model.robotState.tileColors ++ [ viewRobot model.robotState ])
+                ]
+            , viewClientCount model.robotState.clientCount
+            , button
+                [ onClick ResetClicked
+                , style "margin-top" "20px"
+                , style "padding" "10px 20px"
+                , style "font-size" "16px"
+                ]
+                [ text "Reset Robot" ]
             ]
         ]
     }
+
+
+viewClientCount : Int -> Html FrontendMsg
+viewClientCount count =
+    p
+        [ style "margin" "20px 0"
+        , style "font-size" "18px"
+        , style "font-weight" "bold"
+        ]
+        [ text ("Connected Clients: " ++ String.fromInt count) ]
 
 
 viewGrid : Dict ( Int, Int ) TileColor -> List (Svg FrontendMsg)
@@ -201,11 +171,11 @@ viewGridLine ( x1, y1 ) ( x2, y2 ) =
         []
 
 
-viewRobot : FrontendModel -> Svg FrontendMsg
-viewRobot model =
+viewRobot : RobotState -> Svg FrontendMsg
+viewRobot state =
     let
         ( x, y ) =
-            model.robotPosition
+            state.position
 
         centerX =
             x * 100 + 50
@@ -214,7 +184,7 @@ viewRobot model =
             y * 100 + 50
     in
     Svg.g
-        [ SvgAttr.transform ("translate(" ++ String.fromInt centerX ++ "," ++ String.fromInt centerY ++ ") rotate(" ++ String.fromFloat model.robotAngle ++ ")")
+        [ SvgAttr.transform ("translate(" ++ String.fromInt centerX ++ "," ++ String.fromInt centerY ++ ") rotate(" ++ String.fromFloat state.angle ++ ")")
         , SvgAttr.style "transition: transform 0.3s ease-in-out;"
         ]
         [ image
@@ -226,91 +196,6 @@ viewRobot model =
             ]
             []
         ]
-
-
-moveForward : ( Int, Int ) -> Direction -> ( Int, Int )
-moveForward ( x, y ) direction =
-    case direction of
-        North ->
-            ( x, max 0 (y - 1) )
-
-        East ->
-            ( min 4 (x + 1), y )
-
-        South ->
-            ( x, min 4 (y + 1) )
-
-        West ->
-            ( max 0 (x - 1), y )
-
-
-rotateLeft : Direction -> Direction
-rotateLeft direction =
-    case direction of
-        North ->
-            West
-
-        West ->
-            South
-
-        South ->
-            East
-
-        East ->
-            North
-
-
-rotateRight : Direction -> Direction
-rotateRight direction =
-    case direction of
-        North ->
-            East
-
-        East ->
-            South
-
-        South ->
-            West
-
-        West ->
-            North
-
-
-positionToString : ( Int, Int ) -> String
-positionToString ( x, y ) =
-    "(" ++ String.fromInt x ++ ", " ++ String.fromInt y ++ ")"
-
-
-directionToString : Direction -> String
-directionToString direction =
-    case direction of
-        North ->
-            "North"
-
-        East ->
-            "East"
-
-        South ->
-            "South"
-
-        West ->
-            "West"
-
-
-nextTileColor : TileColor -> TileColor
-nextTileColor color =
-    case color of
-        Color1 ->
-            Color2
-
-        Color2 ->
-            Color3
-
-        Color3 ->
-            Color4
-
-        Color4 ->
-            Color1
 
 
 tileColorToHex : TileColor -> String
