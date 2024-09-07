@@ -1,4 +1,4 @@
-module Frontend exposing (..)
+module Frontend exposing (app)
 
 import Browser exposing (Document)
 import Browser.Events exposing (onKeyDown)

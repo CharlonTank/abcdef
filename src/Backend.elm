@@ -1,4 +1,4 @@
-module Backend exposing (..)
+module Backend exposing (app)
 
 import Dict exposing (Dict)
 import Lamdera exposing (ClientId, SessionId)
@@ -30,14 +30,14 @@ initialRobotState =
     , direction = North
     , angle = 0
     , tileColors = initColors
-    , clientCount = 0 -- Initialize client count
+    , clientCount = 0
     }
 
 
 update : BackendMsg -> BackendModel -> ( BackendModel, Cmd BackendMsg )
 update msg ({ robotState } as model) =
     case msg of
-        ClientConnected sessionId clientId ->
+        ClientConnected _ clientId ->
             let
                 newClients =
                     Set.insert clientId model.clients
@@ -52,7 +52,7 @@ update msg ({ robotState } as model) =
             , broadcastRobotState newRobotState newClients
             )
 
-        ClientDisconnected sessionId clientId ->
+        ClientDisconnected _ clientId ->
             let
                 newClients =
                     Set.remove clientId model.clients

@@ -1,25 +1,18 @@
-module Evergreen.V1.Types exposing (..)
+module Evergreen.V1.Types exposing (BackendModel, BackendMsg(..), Direction(..), FrontendModel, FrontendMsg(..), RobotMovement(..), RobotState, TileColor(..), ToBackend(..), ToFrontend(..))
 
 import Browser
 import Browser.Navigation
 import Dict
 import Lamdera
 import Set
-import Url
 
 
 type Direction
-    = North
-    | East
-    | South
-    | West
+    = West
 
 
 type TileColor
-    = Color1
-    | Color2
-    | Color3
-    | Color4
+    = Color4
 
 
 type alias RobotState =
@@ -44,28 +37,19 @@ type alias BackendModel =
 
 
 type RobotMovement
-    = MoveForward
-    | RotateLeft
-    | RotateRight
+    = RotateRight
 
 
 type FrontendMsg
     = UrlClicked Browser.UrlRequest
-    | UrlChanged Url.Url
-    | NoOpFrontendMsg
-    | SendMoveRobot RobotMovement
-    | ResetClicked
 
 
 type ToBackend
-    = MoveRobot RobotMovement
-    | ResetRobot
+    = ResetRobot
 
 
 type BackendMsg
     = NoOpBackendMsg
-    | ClientConnected Lamdera.SessionId Lamdera.ClientId
-    | ClientDisconnected Lamdera.SessionId Lamdera.ClientId
 
 
 type ToFrontend
